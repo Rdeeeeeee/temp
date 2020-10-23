@@ -1,0 +1,74 @@
+from selenium import webdriver
+from bs4 import BeautifulSoup
+import re
+import json as js
+
+
+def article_get(article_id):
+    """获取文章页面的信息
+    :params article_id: str文章的id
+    return dict:dict """
+    dic = {}
+    browser = webdriver.Chrome()  # 使用Chrome浏览器
+    browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
+    # 获取标题信息
+    dic['title'] = browser.find_element_by_xpath('//div[@class="note-top"]').text
+    # 获取内容信息
+    dic['note'] = browser.find_element_by_xpath('//div[@class="content"]').text
+    # 获取作者名
+    dic['author'] = browser.find_element_by_xpath('//span[@class="name-detail"]').text
+    # 获取作者信息
+    html = browser.page_source
+    bs = BeautifulSoup(html, 'lxml')
+    dic['author_info'] = js.loads(bs.find('script', type='application/ld+json').string)['author']
+    # 获取文章id
+    dic['article_id'] = re.match(r'^.*/(.*)$', browser.current_url).groups()[0]
+    # 获取点赞数
+    dic['like'] = browser.find_element_by_xpath('//span[@class="like"]').text
+    # 获取评论数
+    dic['comment'] = browser.find_element_by_xpath('//span[@class="comment"]').text
+    # 获取收藏数
+    dic['star'] = browser.find_element_by_xpath('//span[@class="star"]').text
+    # 获取发布日期
+    dic['publish_date'] = browser.find_element_by_xpath('//div[@class="publish-date"]')
+    # 获取照片链接，以列表的形式存储
+    pics = browser.find_elements_by_xpath('//div[contains(@class, "each")]/i')
+    dic['pics'] = list(map(lambda x: re.match(r'^.*"(.*)".*$', x.get_attribute('style')).group(1), pics))
+    # 获取相关文章的id,用于进一步爬取
+    related_articles = browser.find_elements_by_xpath('//div[@class="panel-list"]/a')
+    dic['related_articles_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], related_articles))
+    # 关闭标签页
+    browser.close()
+    return dic
+
+
+def author_get(author_id):
+    """根据author_id获取author页面的相关信息
+    :params author_id: str 作者编号
+    return dict:author页面的相关信息"""
+    dic = {}
+    browser = webdriver.Chrome()  # 使用Chrome浏览器
+    browser.get("https://www.xiaohongshu.com/user/profile/"+author_id)
+    # 获取作者姓名
+    dic['author_name'] = browser.find_element_by_xpath('//span[@class="name-detail"]').text
+    # 获取作者简介
+    dic['brief'] = browser.find_element_by_xpath('//div[@class="user-brief"]').text
+    # 获取关注数
+    dic['fellow'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[0].text
+    # 获取粉丝数
+    dic['fans'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[1].text
+    # 获取赞和收藏数
+    dic['like'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[2].text
+    # 获取作者位置信息
+    dic['location'] = browser.find_element_by_xpath('//span[@class="location-text"]').text
+    # 获取作者页面的10条note
+    ten_notes = browser.find_elements_by_xpath('//div[@class="note-info"]/a[@class="info"]')
+    dic['ten_notes_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], ten_notes))
+    # 关闭标签页
+    browser.close()
+    return dic
+
+
+if __name__ == '__main__':
+    print(article_get('5f842538000000000101eece'))
+    print(author_get('5a35d6404eacab1c6ef619f2'))
