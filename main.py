@@ -94,7 +94,7 @@ if __name__ == '__main__':
     searched_lst = []
     while True:
         note_id = deq.popleft()
-        if note_id in searched_lstdi:
+        if note_id in searched_lst:
             continue
         else:
             note, related_note = note_get(note_id)
