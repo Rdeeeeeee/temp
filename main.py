@@ -2,9 +2,12 @@ from selenium import webdriver
 from bs4 import BeautifulSoup
 import re
 import json as js
+import pymongo
+from collections import deque
+import time
 
 
-def article_get(article_id):
+def note_get(article_id):
     """获取文章页面的信息
     :params article_id: str文章的id
     return dict:dict """
@@ -20,7 +23,7 @@ def article_get(article_id):
     # 获取作者信息
     html = browser.page_source
     bs = BeautifulSoup(html, 'lxml')
-    dic['author_info'] = js.loads(bs.find('script', type='application/ld+json').string)['author']
+    dic['author_info'] = js.loads(bs.find('script', type='application/ld+json').string, strict=False)['author']
     # 获取文章id
     dic['article_id'] = re.match(r'^.*/(.*)$', browser.current_url).groups()[0]
     # 获取点赞数
@@ -30,16 +33,16 @@ def article_get(article_id):
     # 获取收藏数
     dic['star'] = browser.find_element_by_xpath('//span[@class="star"]').text
     # 获取发布日期
-    dic['publish_date'] = browser.find_element_by_xpath('//div[@class="publish-date"]')
+    dic['publish_date'] = browser.find_element_by_xpath('//div[@class="publish-date"]').text
     # 获取照片链接，以列表的形式存储
     pics = browser.find_elements_by_xpath('//div[contains(@class, "each")]/i')
     dic['pics'] = list(map(lambda x: re.match(r'^.*"(.*)".*$', x.get_attribute('style')).group(1), pics))
     # 获取相关文章的id,用于进一步爬取
-    related_articles = browser.find_elements_by_xpath('//div[@class="panel-list"]/a')
-    dic['related_articles_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], related_articles))
+    related_notes = browser.find_elements_by_xpath('//div[@class="panel-list"]/a')
+    dic['related_notes_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], related_notes))
     # 关闭标签页
     browser.close()
-    return dic
+    return dic, dic['related_notes_lst']
 
 
 def author_get(author_id):
@@ -69,6 +72,41 @@ def author_get(author_id):
     return dic
 
 
+def save_to_mongo(result):
+    """将爬取到的信息存储到MongoDB
+    :params result: dict 字典类型的爬取结果"""
+    try:
+        if db[MONGO_COLLECTION].insert_one(result):
+            print('存储到MongoDB成功')
+    except Exception:
+        print('存储到MongoDB失败')
+
+
 if __name__ == '__main__':
-    print(article_get('5f842538000000000101eece'))
-    print(author_get('5a35d6404eacab1c6ef619f2'))
+    MONGO_HOST = 'localhost'
+    PORT = 27017
+    MONGO_DB = 'xhs'
+    MONGO_COLLECTION = 'note'
+    client = pymongo.MongoClient(MONGO_HOST, PORT)
+    db = client[MONGO_DB]
+    deq = deque()
+    deq.append('5f842538000000000101eece')
+    searched_lst = []
+    while True:
+        note_id = deq.popleft()
+        if note_id in searched_lstdi:
+            continue
+        else:
+            note, related_note = note_get(note_id)
+            save_to_mongo(note)
+            searched_lst.append(note_id)
+            for i in related_note:
+                if i in searched_lst:
+                    break
+                else:
+                    deq.append(i)
+            time.sleep(3)
+        if len(searched_lst) >= 50:
+            break
+    print('searched_lst:', searched_lst, len(searched_lst))
+    print('deq:', deq)
