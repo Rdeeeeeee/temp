@@ -5,15 +5,29 @@ import json as js
 import pymongo
 from collections import deque
 import time
+import requests
 
 
-def note_get(article_id):
+MONGO_HOST = 'localhost'
+PORT = 27017
+MONGO_DB = 'xhs'
+MONGO_COLLECTION = 'note'
+PROXY_POOL_URL = 'http://127.0.0.1:5555/random'
+
+
+def note_get(article_id, proxy=None):
     """获取文章页面的信息
     :params article_id: str文章的id
     return dict:dict """
     dic = {}
-    browser = webdriver.Chrome()  # 使用Chrome浏览器
+    proxy = get_proxy()  # 相当于每次更换一次代理
+    # TODO 修改为多少次更换一次代理，或者不响应了更换代理
+    print(proxy)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--proxy-server=http://" + proxy)
+    browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
     browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
+    # TODO 捕获异常，没有响应怎么办？或者其他异常
     # 获取标题信息
     dic['title'] = browser.find_element_by_xpath('//div[@class="note-top"]').text
     # 获取内容信息
@@ -72,7 +86,7 @@ def author_get(author_id):
     return dic
 
 
-def save_to_mongo(result):
+def save_to_mongo(result, db):
     """将爬取到的信息存储到MongoDB
     :params result: dict 字典类型的爬取结果"""
     try:
@@ -82,11 +96,20 @@ def save_to_mongo(result):
         print('存储到MongoDB失败')
 
 
-if __name__ == '__main__':
-    MONGO_HOST = 'localhost'
-    PORT = 27017
-    MONGO_DB = 'xhs'
-    MONGO_COLLECTION = 'note'
+def get_proxy():
+    """从代理池中获取代理"""
+    try:
+        response = requests.get("http://httpbin.org/get")
+        if response.status_code == 200:
+            return response.text
+    except ConnectionError:
+        return None
+
+
+def main():
+    """
+    主程序
+    """
     client = pymongo.MongoClient(MONGO_HOST, PORT)
     db = client[MONGO_DB]
     deq = deque()
@@ -98,7 +121,7 @@ if __name__ == '__main__':
             continue
         else:
             note, related_note = note_get(note_id)
-            save_to_mongo(note)
+            save_to_mongo(note, db)
             searched_lst.append(note_id)
             for i in related_note:
                 if i in searched_lst:
@@ -110,3 +133,17 @@ if __name__ == '__main__':
             break
     print('searched_lst:', searched_lst, len(searched_lst))
     print('deq:', deq)
+
+
+def test_proxy():
+    proxy = get_proxy()
+    print(proxy)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--proxy-server=http://" + proxy)
+    browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
+    browser.get("http://httpbin.org/get")
+    print(browser.page_source)
+
+
+if __name__ == '__main__':
+    main()
