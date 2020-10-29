@@ -21,6 +21,10 @@ def note_get(article_id, proxy=None):
     return dict:dict """
     dic = {}
     proxy = get_proxy()  # 相当于每次更换一次代理
+    cookies = [{'domain': 'www.xiaohongshu.com', 'expiry': 1667039659, 'httpOnly': False, 'name': 'xhs_spid.5dde', 'path': '/', 'secure': False, 'value': 'b522242e2dc7fb43.1603967657.1.1603967659.1603967657.8351e86a-3c39-4e8a-9e34-c4b84eadb844'},
+               {'domain': 'www.xiaohongshu.com', 'expiry': 1603969459, 'httpOnly': False, 'name': 'xhs_spses.5dde', 'path': '/', 'secure': False, 'value': '*'},
+               {'domain': '.xiaohongshu.com', 'expiry': 1603969455, 'httpOnly': False, 'name': 'extra_exp_ids', 'path': '/', 'secure': False, 'value': 'gif_exp1,ques_clt1'},
+               {'domain': '.xiaohongshu.com', 'expiry': 1635503655, 'httpOnly': False, 'name': 'xhsTrackerId', 'path': '/', 'secure': False, 'value': 'f9fa273e-791d-4ed1-ce3e-ec3ab8758971'}]
     # TODO 修改为多少次更换一次代理，或者不响应了更换代理
     # print(proxy)
     chrome_options = webdriver.ChromeOptions()
@@ -28,6 +32,8 @@ def note_get(article_id, proxy=None):
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'")
     browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
+    for cookie in cookies:
+        browser.add_cookie(cookie)
     browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
     time.sleep(2)
     # TODO 捕获异常，没有响应怎么办？或者其他异常
