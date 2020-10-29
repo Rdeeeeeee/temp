@@ -26,6 +26,7 @@ def note_get(article_id, proxy=None):
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--proxy-server=http://" + proxy)
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'")
     browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
     browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
     time.sleep(2)
