@@ -22,9 +22,10 @@ def note_get(article_id, proxy=None):
     dic = {}
     proxy = get_proxy()  # 相当于每次更换一次代理
     # TODO 修改为多少次更换一次代理，或者不响应了更换代理
-    print(proxy)
+    # print(proxy)
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--proxy-server=http://" + proxy)
+    chrome_options.add_argument("--headless")
     browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
     browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
     # TODO 捕获异常，没有响应怎么办？或者其他异常
