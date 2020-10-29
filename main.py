@@ -28,9 +28,10 @@ def note_get(article_id, proxy=None):
     chrome_options.add_argument("--headless")
     browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
     browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
+    time.sleep(2)
     # TODO 捕获异常，没有响应怎么办？或者其他异常
     # 获取标题信息
-    dic['title'] = browser.find_element_by_xpath('//h1[@class="title"]').text
+    dic['title'] = browser.find_element_by_xpath('//div[@class="note-top"]').text
     # print(dic['title'])
     # 获取内容信息
     dic['note'] = browser.find_element_by_xpath('//div[@class="content"]').text
