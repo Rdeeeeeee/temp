@@ -1,94 +1,80 @@
-from selenium import webdriver
 from bs4 import BeautifulSoup
 import re
-import json as js
+import json
 import pymongo
 from collections import deque
 import time
 import requests
+from lxml import etree
+import hashlib
 
+DEQ = deque()
+SEARCHED = []
 
 MONGO_HOST = 'localhost'
-PORT = 27017
+MONGO_PORT = 27017
 MONGO_DB = 'xhs'
-MONGO_COLLECTION = 'note'
+MONGO_COLLECTION = 'requests_note'
 PROXY_POOL_URL = 'http://127.0.0.1:5555/random'
 
+ORDER_NO = "ZF202010307553xzHsqH"
+SECRET = "5f3d33c12a4a42668fc06e0bbe9591ed"
+IP = "forward.xdaili.cn"
+PORT = "80"
+IP_PORT = IP + ":" + PORT
+TIMESTAMP = str(int(time.time()))
+STRING = "orderno=" + ORDER_NO + "," + "secret=" + SECRET + "," + "timestamp=" + TIMESTAMP
+MD5_STRING = hashlib.md5(STRING.encode('utf-8')).hexdigest()
+SIGN = MD5_STRING.upper()
+AUTH = "sign=" + SIGN + "&" + "orderno=" + ORDER_NO + "&" + "timestamp=" + TIMESTAMP
+PROXY = {"http": "http://" + IP_PORT, "https": "https://" + IP_PORT}
+HEADERS = {"Proxy-Authorization": AUTH,
+           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36"}
 
-def note_get(article_id, proxy=None):
+
+def note_get(note_id):
     """获取文章页面的信息
     :params article_id: str文章的id
     return dict:dict """
+    r = requests.get("https://www.xiaohongshu.com/discovery/item/"+note_id, headers=HEADERS, proxies=PROXY, verify=False, allow_redirects=False)
     dic = {}
-    proxy = get_proxy()  # 相当于每次更换一次代理
-    # TODO 修改为多少次更换一次代理，或者不响应了更换代理
-    # print(proxy)
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--proxy-server=http://" + proxy)
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'")
-    browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
-    browser.get("https://www.xiaohongshu.com/discovery/item/"+article_id)
-    time.sleep(2)
-    # TODO 捕获异常，没有响应怎么办？或者其他异常
-    # 获取标题信息
-    dic['title'] = browser.find_element_by_xpath('//div[@class="note-top"]').text
-    # print(dic['title'])
-    # 获取内容信息
-    dic['note'] = browser.find_element_by_xpath('//div[@class="content"]').text
-    # 获取作者名
-    dic['author'] = browser.find_element_by_xpath('//span[@class="name-detail"]').text
-    # 获取作者信息
-    html = browser.page_source
-    bs = BeautifulSoup(html, 'lxml')
-    dic['author_info'] = js.loads(bs.find('script', type='application/ld+json').string, strict=False)['author']
-    # 获取文章id
-    dic['article_id'] = re.match(r'^.*/(.*)$', browser.current_url).groups()[0]
-    # 获取点赞数
-    dic['like'] = browser.find_element_by_xpath('//span[@class="like"]').text
-    # 获取评论数
-    dic['comment'] = browser.find_element_by_xpath('//span[@class="comment"]').text
-    # 获取收藏数
-    dic['star'] = browser.find_element_by_xpath('//span[@class="star"]').text
-    # 获取发布日期
-    dic['publish_date'] = browser.find_element_by_xpath('//div[@class="publish-date"]').text
-    # 获取照片链接，以列表的形式存储
-    pics = browser.find_elements_by_xpath('//div[contains(@class, "each")]/i')
-    dic['pics'] = list(map(lambda x: re.match(r'^.*"(.*)".*$', x.get_attribute('style')).group(1), pics))
-    # 获取相关文章的id,用于进一步爬取
-    related_notes = browser.find_elements_by_xpath('//div[@class="panel-list"]/a')
-    dic['related_notes_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], related_notes))
-    # 关闭标签页
-    browser.close()
-    return dic, dic['related_notes_lst']
-
-
-def author_get(author_id):
-    """根据author_id获取author页面的相关信息
-    :params author_id: str 作者编号
-    return dict:author页面的相关信息"""
-    dic = {}
-    browser = webdriver.Chrome()  # 使用Chrome浏览器
-    browser.get("https://www.xiaohongshu.com/user/profile/"+author_id)
-    # 获取作者姓名
-    dic['author_name'] = browser.find_element_by_xpath('//span[@class="name-detail"]').text
-    # 获取作者简介
-    dic['brief'] = browser.find_element_by_xpath('//div[@class="user-brief"]').text
-    # 获取关注数
-    dic['fellow'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[0].text
-    # 获取粉丝数
-    dic['fans'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[1].text
-    # 获取赞和收藏数
-    dic['like'] = browser.find_elements_by_xpath('//div[@class="info"]/span[@class="info-number"]')[2].text
-    # 获取作者位置信息
-    dic['location'] = browser.find_element_by_xpath('//span[@class="location-text"]').text
-    # 获取作者页面的10条note
-    ten_notes = browser.find_elements_by_xpath('//div[@class="note-info"]/a[@class="info"]')
-    dic['ten_notes_lst'] = list(map(lambda x: re.match(r'^.*/(.*)$', x.get_attribute('href')).groups()[0], ten_notes))
-    # 关闭标签页
-    browser.close()
-    return dic
+    if r.status_code == 200:
+        html = etree.HTML(r.text)
+        # 获取文章id
+        dic['article_id'] = re.match(r'^.*/(.*)$', r.url).groups()[0]
+        # 获取标题信息
+        dic['title'] = html.xpath('//div[@class="note-top"]/h1[@class="title"]')[0].text.strip()
+        # 获取内容信息
+        dic['note'] = ''.join(html.xpath('//*[@id="app"]/div/div[2]/div[1]/main/div/p/text()'))
+        # 获取作者名
+        dic['author'] = html.xpath('//span[@class="name-detail"]')[0].text
+        # 获取作者信息
+        temp = r.text
+        bs = BeautifulSoup(temp, 'lxml')
+        dic['author_info'] = json.loads(bs.find('script', type='application/ld+json').string, strict=False)['author']
+        # 获取点赞数
+        dic['like'] = html.xpath('//span[@class="like"]/span')[0].text
+        # 获取评论数
+        dic['comment'] = html.xpath('//span[@class="comment"]/span')[0].text
+        # 获取收藏数
+        dic['star'] = html.xpath('//span[@class="star"]/span')[0].text
+        # 获取发布日期
+        dic['publish_date'] = html.xpath('//div[@class="publish-date"]/span')[0].text
+        # 获取图片连接
+        pic_lst = html.xpath('//div[contains(@class, "each")]/i/@style')
+        dic['pics'] = list(map(lambda x: re.match('background-image:url(.*);', x).group(1)[1:-1], pic_lst))
+        # url后面还差一点
+        # 获取相关文章的id,用于进一步爬取
+        related_notes = html.xpath('//div[@class="panel-list"]/a/@href')
+        dic['related_notes'] = list(map(lambda x: re.match(r'^.*/(.*)$', x).groups()[0], related_notes))
+        print(dic)
+        return dic, dic['related_notes']
+    else:
+        f = open("error.txt", "a+")
+        f.write(':'.join([note_id, str(r.status_code)]))
+        f.write('\r\n')
+        f.close()
+        return None, None
 
 
 def save_to_mongo(result, db):
@@ -101,54 +87,39 @@ def save_to_mongo(result, db):
         print('存储到MongoDB失败')
 
 
-def get_proxy():
-    """从代理池中获取代理"""
-    try:
-        response = requests.get("http://httpbin.org/get")
-        if response.status_code == 200:
-            return response.text
-    except ConnectionError:
-        return None
-
-
 def main():
     """
     主程序
     """
-    client = pymongo.MongoClient(MONGO_HOST, PORT)
+    client = pymongo.MongoClient(MONGO_HOST, MONGO_PORT)
     db = client[MONGO_DB]
-    deq = deque()
-    deq.append('5f842538000000000101eece')
-    searched_lst = []
     while True:
-        note_id = deq.popleft()
-        if note_id in searched_lst:
+        note_id = DEQ.popleft()
+        if note_id in SEARCHED:
             continue
         else:
-            note, related_note = note_get(note_id)
-            save_to_mongo(note, db)
-            searched_lst.append(note_id)
-            for i in related_note:
-                if i in searched_lst:
-                    break
-                else:
-                    deq.append(i)
-            time.sleep(3)
-        if len(searched_lst) >= 50:
-            break
-    print('searched_lst:', searched_lst, len(searched_lst))
-    print('deq:', deq)
-
-
-def test_proxy():
-    proxy = get_proxy()
-    print(proxy)
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--proxy-server=http://" + proxy)
-    browser = webdriver.Chrome(options=chrome_options)  # 使用Chrome浏览器
-    browser.get("http://httpbin.org/get")
-    print(browser.page_source)
+            note, related_notes = note_get(note_id)
+            SEARCHED.append(note_id)
+            if note and related_notes:
+                save_to_mongo(note, db)
+                SEARCHED.append(note_id)
+                for j in related_notes:
+                    bool(j in SEARCHED)
+                    if j not in SEARCHED:
+                        DEQ.append(j)
+            else:
+                f = open("rest.txt", "w")
+                f.write(str(list(DEQ)))
+                f.close()
+                f = open("searched.txt", "w")
+                f.write(str(SEARCHED))
+                f.close()
+                continue
+        time.sleep(4)
 
 
 if __name__ == '__main__':
+    temp_lst = ['5f5224fd0000000001008490', '5f62c7f10000000001000d8b', '5f4aea1c000000000100982b', '5f6037b2000000000100693e', '5f50a3ee000000000101e58c', '5f676f300000000001009347', '5f38c1380000000001002dd1', '5f55c77000000000010062c3', '5f56e380000000000100a0d3', '5f60daf2000000000101d1ac']
+    for i in temp_lst:
+        DEQ.append(i)
     main()
